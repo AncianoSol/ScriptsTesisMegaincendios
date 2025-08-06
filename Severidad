@@ -1,0 +1,230 @@
+//Definimos la coleccion sobre la que queremos efectuar la busqueda (S2-BOA)////////parte1
+var Coleccion_S2_BOA_L1 = ee.ImageCollection ('COPERNICUS/S2_SR_HARMONIZED')
+
+//Filtramos la coleccion previa para LAPSO 1
+  //.filterDate ('2023-03-20' ,'2023-03-27') //Zapallar-Papudo
+  .filterDate ('2023-02-01' ,'2023-02-03') //Santa Ana
+  .filterBounds (Corte)
+  .filterMetadata ('CLOUDY_PIXEL_PERCENTAGE', 'Less_Than', 20);
+print (Coleccion_S2_BOA_L1, 'Escenas L1');
+
+var Mosaico_FIL_L1 = Coleccion_S2_BOA_L1.max();
+
+//Construimos el mosaico para AI y L1
+var Mosaico_AI_L1 = Mosaico_FIL_L1.clip(Corte);
+//print (Mosaico_AI_L1, 'mosaico_AI_L1');
+
+//Definimos la coleccion sobre la que queremos efectuar la busqueda (S2-BOA)
+var Coleccion_S2_BOA_L2 = ee.ImageCollection ('COPERNICUS/S2_SR_HARMONIZED')
+
+//Filtramos la coleccion previa para LAPSO 2
+  //.filterDate ('2023-05-15' ,'2023-05-30') //Zapallar-Papudo
+  .filterDate ('2023-03-03' ,'2023-03-05') //Santa Ana
+  .filterBounds (Corte)
+  .filterMetadata ('CLOUDY_PIXEL_PERCENTAGE', 'Less_Than', 20);
+print (Coleccion_S2_BOA_L2, 'Escenas L2');
+
+var Mosaico_FIL_L2 = Coleccion_S2_BOA_L2.max();
+
+//Construimos el mosaico para AI y L2
+var Mosaico_AI_L2 = Mosaico_FIL_L2.clip(Corte);
+//print (Mosaico_AI_L2, 'mosaico_AI_L2');
+
+// Definimos parametros visualizacion Falso color
+var ParamVis_643 = {
+  bands: ['B11', 'B8', 'B4'],
+  min: 1,
+  max: 5000,
+};
+
+//Agregamos los mosaicos en composicion color real
+Map.addLayer(Mosaico_AI_L1, ParamVis_643, 'Vista L1', 0);
+Map.addLayer(Mosaico_AI_L2, ParamVis_643, 'Vista L2', 0);
+
+///////Definimos bandas de mosaico para exportacion////////////////////////parte 2
+var Mosaico_EXP_L1_10m = Mosaico_AI_L1.select('B2','B3','B4','B8');
+var Mosaico_EXP_L1_20m = Mosaico_AI_L1.select('B5','B6','B7','B8A','B11','B12');
+var Mosaico_EXP_L2_10m = Mosaico_AI_L2.select('B2','B3','B4','B8');
+var Mosaico_EXP_L2_20m = Mosaico_AI_L2.select('B5','B6','B7','B8A','B11','B12');
+
+// Calculo de dNBR
+// calculo NBR Lapso 1
+var NBR_L1 = Mosaico_AI_L1.expression ('float (NIR-SWIR) / float (NIR+SWIR)',{
+    'NIR': Mosaico_AI_L1.select ('B8A'),
+    'SWIR': Mosaico_AI_L1.select ('B12')});
+
+// calculo NBR Lapso 2
+var NBR_L2 = Mosaico_AI_L2.expression ('float (NIR-SWIR) / float (NIR+SWIR)',{
+    'NIR': Mosaico_AI_L2.select ('B8A'),
+    'SWIR': Mosaico_AI_L2.select ('B12')});
+    
+   
+// calculo diferencia NBR L1-L2
+var dNBR_SinEscalar = NBR_L1.subtract(NBR_L2);
+
+// Escalar producto a USGS standards
+var dNBR_Escala = dNBR_SinEscalar.multiply(1000);
+
+// Extraer para area de interes
+var dNBR_AOI = dNBR_Escala.clip (Corte);
+
+///////// Definir intervalos y estilos para leyenda dNBR/////////// parte 3
+var sld_intervals =
+  '<RasterSymbolizer>' +
+    '<ColorMap type="intervals" extended="false" >' +
+      '<ColorMapEntry color="#ffffff" quantity="-500" label="-500"/>' +
+      '<ColorMapEntry color="#7a8737" quantity="-250" label="-250" />' +
+      '<ColorMapEntry color="#acbe4d" quantity="-100" label="-100" />' +
+      '<ColorMapEntry color="#a1d99b" quantity="100" label="100" />' +
+      '<ColorMapEntry color="#fd8d3c" quantity="270" label="270" />' +
+      '<ColorMapEntry color="#ef3b2c" quantity="440" label="440" />' +
+      '<ColorMapEntry color="#cb181d" quantity="660" label="660" />' +
+      '<ColorMapEntry color="#67000d" quantity="2000" label="2000" />' +
+    '</ColorMap>' +
+  '</RasterSymbolizer>';
+
+// Cargar vista dNBR y asociar simbologia
+Map.addLayer(dNBR_AOI.sldStyle(sld_intervals), {}, 'Severidad (dNBR)', 1);
+
+ //Añadir leyenda severidad
+// Posicion del panel de leyenda
+var leyenda = ui.Panel({
+  style: {
+    position: 'bottom-left',
+    padding: '8px 15px'
+  }});
+ 
+// Crear titulo leyenda
+var tituloLeyenda = ui.Label({
+  value: 'Clases dNBR',
+  style: {fontWeight: 'bold',
+    fontSize: '18px',
+    margin: '0 0 4px 0',
+    padding: '0'
+    }});
+ 
+// Añadir titulo al panel
+leyenda.add(tituloLeyenda);
+ 
+// Creates and styles 1 row of the legend.
+var makeRow = function(color, name) {
+ 
+      // Create the label that is actually the colored box.
+      var colorBox = ui.Label({
+        style: {
+          backgroundColor: '#' + color,
+          // Use padding to give the box height and width.
+          padding: '8px',
+          margin: '0 0 4px 0'
+        }});
+ 
+      // Create the label filled with the description text.
+      var description = ui.Label({
+        value: name,
+        style: {margin: '0 0 4px 6px'}
+      });
+ 
+      // return the panel
+      return ui.Panel({
+        widgets: [colorBox, description],
+        layout: ui.Panel.Layout.Flow('horizontal')
+      })};
+      
+//  Paleta de colores
+var paleta =['7a8737', 'acbe4d', 'a1d99b', 'fd8d3c', 'ef3b2c', 'cb181d', '67000d', 'c0bfbf'];
+ 
+// Nombres de clases
+var clases = ['Regeneración alta','Regeneración baja','No quemado', 'Severidad baja',
+'Severidad Moderada-Baja', 'Severidad Moderada-Alta', 'Alta Severidad', 'NA'];
+ 
+// Añadir colores y nombres
+for (var i = 0; i < 8; i++) {
+  leyenda.add(makeRow(paleta[i], clases[i]));
+  }  
+
+// añadir leyenda al mapa///////////////////// parte 4
+Map.add(leyenda);
+
+//Reclasificar dNBR y cortar para area interes
+var Area_quemada = dNBR_SinEscalar.rename(['dNBR'])
+          .where(dNBR_SinEscalar.lte(0.1), 0)
+          .where(dNBR_SinEscalar.gte(0.1).and (dNBR_SinEscalar.lte(1000)), 1).clip(Corte);
+
+// Cargar en vista
+var Repres_AQ =
+'<RasterSymbolizer>' +
+  '<ColorMap type="intervals" extended="false">' +
+    '<ColorMapEntry color="#f8ff63" quantity="0" label="No aplica"/>' +
+    '<ColorMapEntry color="#ff4930" quantity="1" label="Aplica"/>' +
+  '</ColorMap>' +
+'</RasterSymbolizer>';
+Map.addLayer(Area_quemada.sldStyle(Repres_AQ), {}, 'Efectiva', 0);
+
+//Exportar Mosaico L1 (res.10m)/////////////////////////////parte 5
+Export.image.toDrive({
+   image: Mosaico_EXP_L1_10m,
+    folder: 'Tesis',
+    description: 'Composicion_L1_AI_10m',
+    scale: 10,
+    crs:'EPSG:32718',
+   region: Corte,
+  maxPixels: 1e13,
+  });
+  
+//Exportar Mosaico L1 (res.20m)
+Export.image.toDrive({
+   image: Mosaico_EXP_L1_20m,
+    folder: 'Tesis',
+    description: 'Composicion_L1_AI_20m',
+    scale: 20,
+    crs:'EPSG:32718',
+   region: Corte,
+  maxPixels: 1e13,
+  });
+  
+//Exportar Mosaico L2 (res.10m)
+Export.image.toDrive({
+   image: Mosaico_EXP_L2_10m,
+    folder: 'Tesis',
+    description: 'Composicion_L2_AI_10m',
+    scale: 10,
+    crs:'EPSG:32718',
+   region: Corte,
+  maxPixels: 1e13,
+  });
+  
+//Exportar Mosaico L2 (res.20m)
+Export.image.toDrive({
+   image: Mosaico_EXP_L2_20m,
+    folder: 'Tesis',
+    description: 'Composicion_L2_AI_20m',
+    scale: 20,
+    crs:'EPSG:32718',
+   region: Corte,
+  maxPixels: 1e13,
+  });
+
+// Exportacion dNBR (sin escalar)
+Export.image.toDrive({
+    image: dNBR_SinEscalar,
+    folder: 'Tesis',
+    description: 'dNBR_Origen',
+    scale: 20,
+    crs:'EPSG:32718',
+   region: Corte,
+   maxPixels: 1e13,
+  });
+
+//Exportar area efectiva (dNBR reclasificado)
+Export.image.toDrive({
+   image: Area_quemada,
+    folder: 'Tesis',
+    description: 'dNBR_Efectiva',
+    scale: 20,
+    crs:'EPSG:32718',
+   region: Corte,
+  maxPixels: 1e13,
+  });
+  
+//Centrar vista
+Map.centerObject (Corte, 11);
