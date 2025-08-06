@@ -1,0 +1,170 @@
+setwd("C:/R_estudio/R2023/Tesis")
+
+##### ANOVA Santa Ana ######
+SA1 <- read.csv(file="SA1.csv",sep=",",dec=".")
+SA1$Combustible <- as.factor(SA1$Combustible)
+SA1 <- SA1 %>%
+  mutate(Combustible = case_when(
+    Combustible == 1 ~ "M.F.",
+    Combustible == 2 ~ "Agri",
+    Combustible == 3 ~ "Pra",
+    Combustible == 4 ~ "B.N.",
+    Combustible == 5 ~ "Mat",
+    TRUE ~ as.character(Combustible) # Mantiene otros valores sin cambios
+  ))
+
+library(UsingR)
+boxplot(SA1$Severidad~ SA1$Combustible)
+boxplot(sqrt(SA1$Severidad)~ SA1$Combustible)
+symbox(SA1$Intensidad)
+symbox(SA1$Severidad)
+boxplot(SA1$Severidad)
+boxplot(SA1$Intensidad)
+
+SA1data_clean <- remove_outliers(SA1)
+symbox(SA1data_clean$Intensidad)
+symbox(SA1data_clean$Severidad)
+
+simple.eda(sqrt(SA1$Severidad)) # al realizar simple EDA se corrobora que SQRT es
+#la transformacion que mas acerca los datos de severidad a la normalidad
+
+boxplot (SA1$Intensidad ~ SA1$Combustible)
+boxplot (log10(SA1$Intensidad) ~ SA1$Combustible)
+boxplot (sqrt(SA1$Severidad) ~ SA1$Combustible)
+
+simple.eda(log10(SA1$Intensidad)) 
+
+#cuando en valor p da menor que el alfa (0.05) existen diferencias 
+#significativas entre los grupos, a diferencia de los test normalidad
+modelo1 <- aov(sqrt(SA1data_clean$Severidad) ~ SA1data_clean$Combustible)
+summary (modelo1)#***diferencias muy significativas <2e-16
+HSD <- TukeyHSD(modelo1)
+HSD
+plot(HSD,las=1)
+
+modelo2 <- aov(sqrt(SA1data_clean$Intensidad) ~ SA1data_clean$Combustible)
+summary(modelo2)
+
+HSD2 <- TukeyHSD(modelo2) #p dio 0.711 mayor que el alfa asi que no hay dif signif
+HSD2
+plot(HSD2,las=1)
+
+windows()
+par(mfrow = c(2, 2))  # Configurar la ventana con 2 filas y 2 columnas
+
+# Boxplot de Severidad con colores y eje horizontal
+boxplot(sqrt(SA1data_clean$Severidad) ~ SA1data_clean$Combustible, 
+        col = c("lightblue", "lightgreen", "lightcoral", "lightskyblue", "lightpink"), 
+        main = "sqrt de dNBR (Severidad)", 
+        xlab = "Tipo de combustible", 
+        ylab = "sqrt de dNBR (Severidad)", 
+        las = 1)  # Etiquetas del eje Y horizontales
+
+# Gráfico de HSD para Severidad (sin título predeterminado)
+plot(HSD,las=1)
+
+# Boxplot de Intensidad con colores y eje horizontal
+boxplot(sqrt(SA1data_clean$Intensidad) ~ SA1data_clean$Combustible, 
+        col = c("lightblue", "lightgreen", "lightcoral", "lightskyblue", "lightpink"), 
+        main = "sqrt de FRP (Intensidad)", 
+        xlab = "Tipo de combustible", 
+        ylab = "sqrt de FRP (Intensidad)", 
+        las = 1)
+
+# Gráfico de HSD para Intensidad (sin título predeterminado)
+plot(HSD2,las=1)
+# Título de la ventana general
+title(main = "
+      Resultados Comparaciones Múltiples Evento Santa Ana", outer = TRUE, cex.main = 1.5)
+
+##### ANOVA Santa Gertrudis ######
+
+SG1 <- read.csv(file="SG1.csv",sep=",",dec=".")
+SG1$Combustible <- as.factor(SG1$Combustible)
+SG1 <- SG1 %>%
+  mutate(Combustible = case_when(
+    Combustible == 1 ~ "M.F.",
+    Combustible == 2 ~ "Agri",
+    Combustible == 3 ~ "Pra",
+    Combustible == 4 ~ "B.N.",
+    Combustible == 5 ~ "Mat",
+    TRUE ~ as.character(Combustible) # Mantiene otros valores sin cambios
+  ))
+
+boxplot(SG1$Severidad~ SG1$Combustible)
+boxplot(sqrt(SG1$Severidad)~ SG1$Combustible)
+boxplot(sqrt(SG1$Severidad)~ SG1$Combustible)
+#comando symbox muestra como quedan los datos con las transformaciones...
+# eldel medio es transf log, el segundo der es sqrt y el de la derecha es sin 
+#transformacion....requiere la libreria car
+symbox(SG1$Severidad)
+symbox(SG1$Intensidad)#eliminar outliers y de ahi transfomrar sqrt
+boxplot(sqrt(SG1$Intensidad))
+
+SG1data_clean <- remove_outliers(SG1)
+
+symbox(SG1data_clean$Intensidad)
+symbox(SG1data_clean$Severidad)
+
+#Claramente ahora vemos que con los datos limpios es mejor transformar con 
+#sqrt queda bien
+
+modelo3 <- aov(sqrt(SG1data_clean$Severidad) ~ SG1data_clean$Combustible)
+summary (modelo3) #0.00415 ** este código me dio muy significativo
+HSD3 <- TukeyHSD(modelo3)
+HSD3
+plot(HSD3,las=1)
+
+modelo4 <- aov(sqrt(SG1data_clean$Intensidad) ~ SG1data_clean$Combustible)
+summary(modelo4) #0.0287 * muy significativo
+HSD4
+HSD4 <- TukeyHSD(modelo4)
+plot(HSD4,las=1)
+
+windows()
+par(mfrow = c(2, 2))  # Configurar la ventana con 2 filas y 2 columnas
+
+# Boxplot de Severidad con colores (vertical por defecto)
+boxplot(sqrt(SG1data_clean$Severidad) ~ SG1data_clean$Combustible, 
+        col = c("lightblue", "lightgreen", "lightcoral", "lightskyblue", "lightpink"), 
+        main = "sqrt de dNBR (Severidad)", 
+        xlab = "Tipo de combustible", 
+        ylab = "sqrt de dNBR (Severidad)", 
+        las = 1)  # Etiquetas del eje X horizontales
+
+# Gráfico de HSD para Severidad (sin título predeterminado)
+plot(HSD3, las = 1)
+
+# Boxplot de Intensidad con colores (vertical por defecto)
+boxplot(sqrt(SG1data_clean$Intensidad) ~ SG1data_clean$Combustible, 
+        col = c("lightblue", "lightgreen", "lightcoral", "lightskyblue", "lightpink"), 
+        main = "Sqrt de FRP (Intensidad)", 
+        xlab = "Tipo de combustible", 
+        ylab = "Sqrt de FRP (Intensidad)", 
+        las = 1)
+
+# Gráfico de HSD para Intensidad (sin título predeterminado)
+plot(HSD4, las = 1)
+
+# Título de la ventana general
+title(main = "
+      Resultados Comparaciones Múltiples Evento Santa Gertrudis", outer = TRUE, cex.main = 1.5)
+
+##### Funcion para quitar outliers segun criterio del rango IC#####
+
+library(dplyr)
+
+remove_outliers <- function(df) {
+  df %>%
+    mutate(across(where(is.numeric), ~ ifelse(. < quantile(., 0.25) - 1.5 * IQR(.)
+                                              | . > quantile(., 0.75) + 1.5 * IQR(.),
+                                              NA, .))) %>%
+    na.omit()
+}
+
+# Ejemplo de uso
+data <- data.frame(A = c(10, 12, 15, 100, 14, 13, 200), 
+                   B = c(5, 7, 9, 8, 1000, 6, 4))
+
+data_clean <- remove_outliers(data)
+print(data_clean)
