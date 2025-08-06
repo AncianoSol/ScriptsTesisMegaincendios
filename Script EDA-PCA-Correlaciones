@@ -1,0 +1,555 @@
+setwd("C:/R_estudio/R2023/Tesis")
+
+####### 5.- Trabajando con las nueva red de muestreo SA #######
+
+#SA2022 <- read.csv(file="ReplicandoInterpSA.csv",sep=",",dec=".")
+SA2022 <- read.csv(file="SAtodoextraido22julio.csv",sep=",",dec=".")
+SA2022 <- SA2022[complete.cases(SA2022), ]
+SA2022$FRP6 <- rowMeans(SA2022[, 21:25], na.rm = TRUE)
+edit(SA2022)
+SA2022.1 <- SA2022[, -c(1, 2, 13, 14, 25, 26)]
+#columnas quitadas: 1 y 2: numeros de registro o fila, 13 y 14 son uso y estructura
+# uso lo quitamos pero lo usaremos para el analisis categorico
+# estructura es un campo caduco que no deberia estar (a menos q felez luego lo pida)
+# 25 es FRP5 (spline) porque no se pudo transformar y el 26 q es categoria de orientacion
+edit(SA2022.1)
+
+windows()
+par(mfrow=c(2,1))
+boxplot (SA2022.1)#boxploteamos para explorar datos
+boxplot (scale(SA2022.1))
+#comando scale, centra los datos y les cambia la escala para que 
+#todos los datos sean visibles
+
+windows()
+par(mfrow=c(5,5))
+hist(SA2022.1$GCI, xlab="GCI", ylab="GCI", main="GCI", col="green", cex.sub=0.2)
+hist(SA2022.1$MSAVI2,  xlab="MSAVI2", ylab="frecuencia", main="MSAVI2", col="cyan", cex.sub=0.2)
+hist(SA2022.1$MSI, xlab="MSI", ylab="frecuencia", main="MSI", col="red", cex.sub=0.2)
+hist(SA2022.1$NBR, xlab="NBR", ylab="frecuencia", main="NBR", col="purple", cex.sub=0.2)
+hist(SA2022.1$NDMI, xlab="NDMI", ylab="frecuencia", main="NDMI", col="blue", cex.sub=0.2)
+hist(SA2022.1$NDVI, xlab="NDVI", ylab="frecuencia", main="NDVI", col="#8B3E2F", cex.sub=0.2)
+hist(SA2022.1$NDWI, xlab="NDWI", ylab="frecuencia", main="NDWI", col="#CD6090", cex.sub=0.2)
+hist(SA2022.1$VARI, xlab="VARI", ylab="frecuencia", main="VARI", col="#87CEFA", cex.sub=0.2)
+#hist(FRPSG2022$Categ.sev, xlab="Categ.sev", ylab="frecuencia", main="Categ.sev", col="#E0EEEE", cex.sub=0.2)
+hist(SA2022.1$Severidad, xlab="Severidad", ylab="frecuencia", main="Severidad", col="#FF4500", cex.sub=0.2)
+hist(SA2022.1$Elevacion, xlab="Elevacion", ylab="frecuencia", main="Elevacion", col="magenta", cex.sub=0.2)
+hist(SA2022.1$Pendiente, xlab="Pendiente", ylab="frecuencia", main="Pendiente", col="brown", cex.sub=0.2)
+#hist(SA2022.1$orientacion, xlab="orientacion", ylab="frecuencia", main="Orientacion", col="#458B00", cex.sub=0.2)
+hist(SA2022.1$Eastness, xlab="Eastness", ylab="frecuencia", main="Eastness", col="#EEAD0E", cex.sub=0.2)
+hist(SA2022.1$Northness, xlab="Northness", ylab="frecuencia", main="Northness", col="#1E90FF", cex.sub=0.2)
+hist(SA2022.1$Altura.Dosel, xlab="Altura.Dosel", ylab="frecuencia", main="Altura.Dosel", col="#40E0D0", cex.sub=0.2)
+hist(SA2022.1$FRP1, xlab="FRP1", ylab="frecuencia", main="FRP1", col="#00008B", cex.sub=0.2)
+hist(SA2022.1$FRP2, xlab="FRP2", ylab="frecuencia", main="FRP2", col="#EE6A50", cex.sub=0.2)
+hist(SA2022.1$FRP3, xlab="FRP3", ylab="frecuencia", main="FRP3", col="#EEE8CD", cex.sub=0.2)
+hist(SA2022.1$FRP4, xlab="FRP4", ylab="frecuencia", main="FRP4", col="#BCEE68", cex.sub=0.2)
+hist(SA2022.1$FRP5, xlab="FRP5", ylab="frecuencia", main="FRP5", col="#CD1076", cex.sub=0.2)
+hist(SA2022.1$FRP6, xlab="FRP6", ylab="frecuencia", main="FRP6", col="#CD1076", cex.sub=0.2)
+
+#####aplicando la transformacion del profe araneda#####
+
+#no se pudo el spline porque tenia valores muuuy negativos
+library(dplyr)#paquete q nos permite transformar columnas menos la ID_Fuel
+SA2022.2 <- SA2022.1 %>%
+  mutate(across(-ID_Fuel, ~ sqrt(. + 1)))
+#SA2022.2.1 <- sqrt(SA2022.1)... esta no se aplicó porque da valores nulos
+edit (SA2022.2)
+windows()
+par(mfrow=c(2,1))
+boxplot (SA2022.2)
+boxplot (scale(SA2022.2))
+#####revisando como la transformacion afecta a los IE######
+SA2022IE <- SA2022.1[, -c(9:22)]
+SA2022IEtransform <- SA2022.2[, -c(9:22)]
+
+windows()
+par(mfrow=c(3,1))
+boxplot (SA2022IE)
+boxplot (SA2022IEtransform)
+#boxplot (SA2022IEtransform2)
+# boxploteamos para ver cómo la transformación afectó a los datos
+
+windows()
+par(mfrow=c(5,5))
+hist(SA2022.2$GCI, xlab="GCI", ylab="GCI", main="GCI", col="green", cex.sub=0.2)
+hist(SA2022.2$MSAVI2,  xlab="MSAVI2", ylab="frecuencia", main="MSAVI2", col="cyan", cex.sub=0.2)
+hist(SA2022.2$MSI, xlab="MSI", ylab="frecuencia", main="MSI", col="red", cex.sub=0.2)
+hist(SA2022.2$NBR, xlab="NBR", ylab="frecuencia", main="NBR", col="purple", cex.sub=0.2)
+hist(SA2022.2$NDMI, xlab="NDMI", ylab="frecuencia", main="NDMI", col="blue", cex.sub=0.2)
+hist(SA2022.2$NDVI, xlab="NDVI", ylab="frecuencia", main="NDVI", col="#8B3E2F", cex.sub=0.2)
+hist(SA2022.2$NDWI, xlab="NDWI", ylab="frecuencia", main="NDWI", col="#CD6090", cex.sub=0.2)
+hist(SA2022.2$VARI, xlab="VARI", ylab="frecuencia", main="VARI", col="#87CEFA", cex.sub=0.2)
+#hist(FRPSG2022$Categ.sev, xlab="Categ.sev", ylab="frecuencia", main="Categ.sev", col="#E0EEEE", cex.sub=0.2)
+hist(SA2022.2$Severidad, xlab="Severidad", ylab="frecuencia", main="Severidad", col="#FF4500", cex.sub=0.2)
+hist(SA2022.2$Elevacion, xlab="Elevacion", ylab="frecuencia", main="Elevacion", col="magenta", cex.sub=0.2)
+hist(SA2022.2$Pendiente, xlab="Pendiente", ylab="frecuencia", main="Pendiente", col="brown", cex.sub=0.2)
+#hist(SA2022.1$orientacion, xlab="orientacion", ylab="frecuencia", main="Orientacion", col="#458B00", cex.sub=0.2)
+hist(SA2022.2$Eastness, xlab="Eastness", ylab="frecuencia", main="Eastness", col="#EEAD0E", cex.sub=0.2)
+hist(SA2022.2$Northness, xlab="Northness", ylab="frecuencia", main="Northness", col="#1E90FF", cex.sub=0.2)
+hist(SA2022.2$Altura.Dosel, xlab="Altura.Dosel", ylab="frecuencia", main="Altura.Dosel", col="#40E0D0", cex.sub=0.2)
+hist(SA2022.2$FRP1, xlab="FRP1", ylab="frecuencia", main="FRP1", col="#00008B", cex.sub=0.2)
+hist(SA2022.2$FRP2, xlab="FRP2", ylab="frecuencia", main="FRP2", col="#EE6A50", cex.sub=0.2)
+hist(SA2022.2$FRP3, xlab="FRP3", ylab="frecuencia", main="FRP3", col="#EEE8CD", cex.sub=0.2)
+hist(SA2022.2$FRP4, xlab="FRP4", ylab="frecuencia", main="FRP4", col="#BCEE68", cex.sub=0.2)
+#hist(SA2022.2$FRP5, xlab="FRP5", ylab="frecuencia", main="FRP5", col="#CD1076", cex.sub=0.2)
+hist(SA2022.2$FRP6, xlab="FRP6", ylab="frecuencia", main="FRP6", col="#CD1076", cex.sub=0.2)
+
+####### correlaciones SA #######
+
+#depuracion datos0
+edit(SA2022.2)
+SA2022.3 <- SA2022.2[, -c(9, 21)]#quitamos el ID fuel
+edit(SA2022.3)
+#edit(FRPSG2022.3)
+spearmanSA2022.3<-round(cor(SA2022.3, method="spearman"),2)
+spearmanSA2022.3 #entrega valores numericos de matriz de correlacion
+testRes = cor.mtest(SA2022.3, conf.level = 0.95)
+
+#haciendo un correlograma#
+
+library(corrplot)
+
+windows()
+corrplot(spearmanSA2022.3, p.mat = testRes$p, method = 'square', type = 'lower', insig='blank', tl.col="black",
+         order = 'AOE', diag = FALSE,addCoef.col = "black",addgrid.col="gray", number.cex=0.6, COL2('BrBG'), title=
+           "
+         Correlograma Evento Santa Ana")$corrPos -> p1
+
+####### PCA SA  ########
+
+library(factoextra)
+pcaSA<- prcomp(spearmanSA2022.3, scale = TRUE)
+windows()
+fviz_pca_var(pcaSA,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,title="PCA SA")
+
+#probando un pca sin aplicar correlaciones previamente
+pcaSA1<- prcomp(SA2022.3, scale = TRUE)
+
+library (vegan)
+20223 <- (SA2022.3)
+
+pca1 <- rda (SA20223, scale=TRUE)
+biplot (pca1, scaling = 1)
+
+
+windows()
+fviz_pca_var(pcaSA1,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,title="PCA SA1")
+
+#PCA con los individuos #no se pudu
+windows()
+fviz_pca_ind(SA20223, col.ind = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE # Avoid text overlapping (slow if many points)
+)
+
+######## analisis por orientacion santa ana ########
+# Cargar librería dplyr
+library(dplyr)
+# Agregar una nueva columna llamada 'Categoria_Orientacion' a tu dataframe
+SA2022.4 <- SA2022.1 %>%
+  mutate(Categoria_Orientacion = case_when(
+    Orientacion >= 315 | Orientacion < 45 ~ "Norte",
+    Orientacion >= 45 & Orientacion < 135 ~ "Este",
+    Orientacion >= 135 & Orientacion < 225 ~ "Sur",
+    Orientacion >= 225 & Orientacion < 315 ~ "Oeste",
+    Orientacion == -1 ~ "Plano",  # Condición para "plano"
+    TRUE ~ NA_character_  # Para otros casos
+  ))
+edit(SA2022.4)
+# Crear el boxplot
+library(ggplot2)
+
+ggplot(SA2022.4, aes(x = Categoria_Orientacion, y = Severidad, fill = Categoria_Orientacion)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#1b9e77", "#d95f02", "#7570b3", "#e7298a")) +
+  labs(
+    title = "Distribución de Severidades por Categoría de Orientación Evento Santa Ana",
+    x = "Categoría de Orientación",
+    y = "Severidad"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none", axis.text.x = element_text(size = 14))  # Oculta la leyenda
+
+####### ANOVA SA #######
+
+SA1 <- SA2022[, c(12, 27, 28)]
+edit(SA1)
+SA1 <- SA1[SA1$ID_Fuel %in% 1:5, ]
+SA1$ID_Fuel <- as.factor(SA1$ID_Fuel)
+colnames(SA1)[colnames(SA1) == "FRP6"] <- "Intensidad"
+colnames(SA1)[colnames(SA1) == "ID_Fuel"] <- "Combustible"
+
+write.csv(SA1, file = "C:/R_estudio/R2023/Tesis/SA1.csv", row.names = FALSE)
+
+# a continuacion lo exportamos para abrirlo en el otro script#
+
+# Análisis exploratorio pre-ANOVA #
+# esto permitia comparar boxplots de datos transformados y sin transformar
+# guardemoslo para el futuro
+
+# etiquetas_fuel <- c(
+#   "1" = "Monocultivo forestal",
+#   "2" = "Agricultura",
+#   "3" = "Praderas",
+#   "4" = "Bosque nativo",
+#   "5" = "Matorrales")
+# 
+# a <- ggplot(data = SA1, aes(x = Combustible, y = Severidad, fill = Combustible)) +
+#   geom_boxplot() +
+#   coord_flip() +
+#   scale_x_discrete(limits = rev(unique(SA1$Combustible)),  # Invierte el orden de las categorías
+#                    labels = etiquetas_fuel) +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1),
+#         legend.position = "none") +  # Quita la leyenda
+#   ggtitle("Santa Ana, Comb VS Severidad Sin transformar") +
+#   scale_fill_brewer(palette = "Set3") # Cambia el esquema de colores
+# 
+# b <- ggplot(data = SA2, aes(x = Combustible, y = Severidad, fill = Combustible)) +
+#   geom_boxplot() +
+#   coord_flip() +
+#   scale_x_discrete(limits = rev(unique(SA2$Combustible)),  # Invierte el orden de las categorías
+#                    labels = etiquetas_fuel) +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1),
+#         legend.position = "none") +  # Quita la leyenda
+#   ggtitle("Santa Ana, Comb VS Severidad trans SQRT+1") +
+#   scale_fill_brewer(palette = "Set3")
+# 
+# c <- ggplot(data = SA1, aes(x = Combustible, y = Intensidad, fill = Combustible)) +
+#   geom_boxplot() +
+#   coord_flip() +
+#   scale_x_discrete(limits = rev(unique(SA1$Combustible)),  # Invierte el orden de las categorías
+#                    labels = etiquetas_fuel) +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1),
+#         legend.position = "none") +  # Quita la leyenda
+#   ggtitle("Santa Ana, Comb VS Intensidad Sin transformar") +
+#   scale_fill_brewer(palette = "Set3")
+# 
+# d <- ggplot(data = SA2, aes(x = Combustible, y = Intensidad, fill = Combustible)) +
+#   geom_boxplot() +
+#   coord_flip() +
+#   scale_x_discrete(limits = rev(unique(SA2$Combustible)),  # Invierte el orden de las categorías
+#                    labels = etiquetas_fuel) +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1),
+#         legend.position = "none") +  # Quita la leyenda
+#   ggtitle("Santa Ana, Comb VS Intensidad Trans SQRT+1") +
+#   scale_fill_brewer(palette = "Set3")
+# 
+# table(SA1$Combustible)
+# table(SA2$Combustible)
+# 
+# library(ggpubr)
+# ggarrange(a, b, c, d + rremove("x.text"), 
+#           labels = c("a", "b", "c", "d"),
+#           ncol = 2, nrow = 2)
+
+# Cargar librerías necesarias
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(forcats)  # <- ESTA LÍNEA ES LA CLAVE
+
+# Asignar tu dataset
+datos <- SA_sev_por_tipo_comb
+
+# Filtrar datos excluyendo categoría 0
+datos_filtrados <- datos %>%
+  filter(Categ.Sev != 0)
+
+# Crear factores legibles y ordenados
+datos_filtrados <- datos_filtrados %>%
+  mutate(
+    Categoria_Severidad = factor(Categ.Sev,
+                                 levels = 1:4,
+                                 labels = c(
+                                   "1 - Severidad baja",
+                                   "2 - Moderada-baja",
+                                   "3 - Moderada-alta",
+                                   "4 - Severidad alta"
+                                 )),
+    Tipo_Combustible = factor(ID_Fuel,
+                              levels = 1:5,
+                              labels = c(
+                                "Monocultivo forestal",
+                                "Agricultura",
+                                "Praderas",
+                                "Bosque Nativo",
+                                "Matorral"
+                              ))
+  )
+
+# Crear tabla de conteo
+tabla_severidad_comb <- datos_filtrados %>%
+  count(Tipo_Combustible, Categoria_Severidad) %>%
+  pivot_wider(names_from = Categoria_Severidad, values_from = n, values_fill = 0) %>%
+  mutate(Total = rowSums(across(where(is.numeric)))) %>%
+  arrange(factor(Tipo_Combustible, levels = c(
+    "Monocultivo forestal",
+    "Agricultura",
+    "Praderas",
+    "Bosque Nativo",
+    "Matorral"
+  )))
+
+# Mostrar tabla en consola
+print(tabla_severidad_comb)
+
+# Exportar tabla como CSV
+write_csv(tabla_severidad_comb, "tabla_severidad_por_combustible.csv")
+
+# Preparar tabla para heatmap
+tabla_heatmap <- tabla_severidad_comb %>%
+  select(-Total) %>%
+  pivot_longer(cols = -Tipo_Combustible,
+               names_to = "Categoria_Severidad",
+               values_to = "Cantidad") %>%
+  mutate(
+    Tipo_Combustible = factor(Tipo_Combustible, levels = c(
+      "Monocultivo forestal",
+      "Agricultura",
+      "Praderas",
+      "Bosque Nativo",
+      "Matorral"
+    ))
+  )
+
+# Crear heatmap ordenado
+ggplot(tabla_heatmap, aes(x = Categoria_Severidad, y = fct_rev(Tipo_Combustible), fill = Cantidad)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Cantidad), color = "black", size = 4) +
+  scale_fill_gradient(low = "white", high = "firebrick") +
+  labs(
+    title = "Mapa de calor: puntos por severidad y tipo de combustible",
+    x = "Categoría de Severidad",
+    y = "Tipo de Combustible",
+    fill = "Cantidad"
+  ) +
+  theme_minimal()
+
+####### 6.- Trabajando con las nueva red de muestreo SG #######
+
+SG2022 <- read.csv(file="SGtodoextraido22julio.csv",sep=",",dec=".")
+SG2022 <- SG2022[complete.cases(SG2022), ]
+SG2022$FRP6 <- rowMeans(SG2022[, 21:25], na.rm = TRUE)
+SG2022.1 <- SG2022[, -c(1, 2, 13, 14, 25, 26)]#FRP5 se usó igual para calcular
+#el promedio de las interpolaciones pero no se graficó porque no se pudo transformar
+edit(SG2022.1)
+
+windows()
+par(mfrow=c(5,5))
+hist(SG2022.1$GCI, xlab="GCI", ylab="GCI", main="GCI", col="green", cex.sub=0.2)
+hist(SG2022.1$MSAVI2,  xlab="MSAVI2", ylab="frecuencia", main="MSAVI2", col="cyan", cex.sub=0.2)
+hist(SG2022.1$MSI, xlab="MSI", ylab="frecuencia", main="MSI", col="red", cex.sub=0.2)
+hist(SG2022.1$NBR, xlab="NBR", ylab="frecuencia", main="NBR", col="purple", cex.sub=0.2)
+hist(SG2022.1$NDMI, xlab="NDMI", ylab="frecuencia", main="NDMI", col="blue", cex.sub=0.2)
+hist(SG2022.1$NDVI, xlab="NDVI", ylab="frecuencia", main="NDVI", col="#8B3E2F", cex.sub=0.2)
+hist(SG2022.1$NDWI, xlab="NDWI", ylab="frecuencia", main="NDWI", col="#CD6090", cex.sub=0.2)
+hist(SG2022.1$VARI, xlab="VARI", ylab="frecuencia", main="VARI", col="#87CEFA", cex.sub=0.2)
+#hist(FRPSG2022$Categ.sev, xlab="Categ.sev", ylab="frecuencia", main="Categ.sev", col="#E0EEEE", cex.sub=0.2)
+hist(SG2022.1$Severidad, xlab="Severidad", ylab="frecuencia", main="Severidad", col="#FF4500", cex.sub=0.2)
+hist(SG2022.1$Elevacion, xlab="Elevacion", ylab="frecuencia", main="Elevacion", col="magenta", cex.sub=0.2)
+hist(SG2022.1$Pendiente, xlab="Pendiente", ylab="frecuencia", main="Pendiente", col="brown", cex.sub=0.2)
+#hist(SA2022.1$orientacion, xlab="orientacion", ylab="frecuencia", main="Orientacion", col="#458B00", cex.sub=0.2)
+hist(SG2022.1$Eastness, xlab="Eastness", ylab="frecuencia", main="Eastness", col="#EEAD0E", cex.sub=0.2)
+hist(SG2022.1$Northness, xlab="Northness", ylab="frecuencia", main="Northness", col="#1E90FF", cex.sub=0.2)
+hist(SG2022.1$Altura.Dosel, xlab="Altura.Dosel", ylab="frecuencia", main="Altura.Dosel", col="#40E0D0", cex.sub=0.2)
+hist(SG2022.1$FRP1, xlab="FRP1", ylab="frecuencia", main="FRP1", col="#00008B", cex.sub=0.2)
+hist(SG2022.1$FRP2, xlab="FRP2", ylab="frecuencia", main="FRP2", col="#EE6A50", cex.sub=0.2)
+hist(SG2022.1$FRP3, xlab="FRP3", ylab="frecuencia", main="FRP3", col="#EEE8CD", cex.sub=0.2)
+hist(SG2022.1$FRP4, xlab="FRP4", ylab="frecuencia", main="FRP4", col="#BCEE68", cex.sub=0.2)
+#hist(SG2022.1$FRP5, xlab="FRP5", ylab="frecuencia", main="FRP5", col="#CD1076", cex.sub=0.2)
+hist(SG2022.1$FRP6, xlab="FRP6", ylab="frecuencia", main="FRP6", col="#BCEE68", cex.sub=0.2)
+
+#aplicando la transformacion del profe araneda
+library(dplyr)
+SG2022.2 <- SG2022.1 %>%
+  mutate(across(-ID_Fuel, ~ sqrt(. + 1)))
+
+windows()
+par(mfrow=c(5,5))
+hist(SG2022.2$GCI, xlab="GCI", ylab="GCI", main="GCI", col="green", cex.sub=0.2)
+hist(SG2022.2$MSAVI2,  xlab="MSAVI2", ylab="frecuencia", main="MSAVI2", col="cyan", cex.sub=0.2)
+hist(SG2022.2$MSI, xlab="MSI", ylab="frecuencia", main="MSI", col="red", cex.sub=0.2)
+hist(SG2022.2$NBR, xlab="NBR", ylab="frecuencia", main="NBR", col="purple", cex.sub=0.2)
+hist(SG2022.2$NDMI, xlab="NDMI", ylab="frecuencia", main="NDMI", col="blue", cex.sub=0.2)
+hist(SG2022.2$NDVI, xlab="NDVI", ylab="frecuencia", main="NDVI", col="#8B3E2F", cex.sub=0.2)
+hist(SG2022.2$NDWI, xlab="NDWI", ylab="frecuencia", main="NDWI", col="#CD6090", cex.sub=0.2)
+hist(SG2022.2$VARI, xlab="VARI", ylab="frecuencia", main="VARI", col="#87CEFA", cex.sub=0.2)
+#hist(FRPSG2022$Categ.sev, xlab="Categ.sev", ylab="frecuencia", main="Categ.sev", col="#E0EEEE", cex.sub=0.2)
+hist(SG2022.2$Severidad, xlab="Severidad", ylab="frecuencia", main="Severidad", col="#FF4500", cex.sub=0.2)
+hist(SG2022.2$Elevacion, xlab="Elevacion", ylab="frecuencia", main="Elevacion", col="magenta", cex.sub=0.2)
+hist(SG2022.2$Pendiente, xlab="Pendiente", ylab="frecuencia", main="Pendiente", col="brown", cex.sub=0.2)
+#hist(SA2022.1$orientacion, xlab="orientacion", ylab="frecuencia", main="Orientacion", col="#458B00", cex.sub=0.2)
+hist(SG2022.2$Eastness, xlab="Eastness", ylab="frecuencia", main="Eastness", col="#EEAD0E", cex.sub=0.2)
+hist(SG2022.2$Northness, xlab="Northness", ylab="frecuencia", main="Northness", col="#1E90FF", cex.sub=0.2)
+hist(SG2022.2$Altura.Dosel, xlab="Altura.Dosel", ylab="frecuencia", main="Altura.Dosel", col="#40E0D0", cex.sub=0.2)
+hist(SG2022.2$FRP1, xlab="FRP1", ylab="frecuencia", main="FRP1", col="#00008B", cex.sub=0.2)
+hist(SG2022.2$FRP2, xlab="FRP2", ylab="frecuencia", main="FRP2", col="#EE6A50", cex.sub=0.2)
+hist(SG2022.2$FRP3, xlab="FRP3", ylab="frecuencia", main="FRP3", col="#EEE8CD", cex.sub=0.2)
+hist(SG2022.2$FRP4, xlab="FRP4", ylab="frecuencia", main="FRP4", col="#BCEE68", cex.sub=0.2)
+#hist(SG2022.2$FRP5, xlab="FRP5", ylab="frecuencia", main="FRP5", col="#CD1076", cex.sub=0.2)
+hist(SG2022.2$FRP6, xlab="FRP5", ylab="frecuencia", main="FRP5", col="#CD1076", cex.sub=0.2)
+
+####### correlaciones SG  ########
+
+#depuracion datos
+SG2022.3 <- SG2022.2[, -c(9, 21)]#quitamos el ID fuel
+spearmanSG2022.3<-round(cor(SG2022.3, method="spearman"),2)
+spearmanSG2022.3 #entrega valores numericos de matriz de correlacion
+library(corrplot)
+testRes2 = cor.mtest(SG2022.3, conf.level = 0.95)
+
+#haciendo un correlograma#
+
+windows()
+corrplot(spearmanSG2022.3, p.mat = testRes2$p, method = 'square', type = 'lower', insig='blank', tl.col="black",
+         order = 'AOE', diag = FALSE,addCoef.col = "black",addgrid.col="gray", number.cex=0.6, COL2('BrBG'), title=
+           "
+         Correlograma Evento Santa Gertrudis")$corrPos -> p1
+
+#PCA SG#
+
+install.packages("factoextra")
+library(factoextra)
+pcaSG<- prcomp(spearmanSG2022.3, scale = TRUE)
+windows()
+fviz_pca_var(pcaSG,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,title="PCA SG")
+
+#queda pendiente para SG: sacar PCA sin correlaciones y PCA con los sitios 
+# (despues de la reunion con el profe araneda)
+
+####### puntos por categoria SG #######
+
+
+
+######## analisis por orientacion santa Gertrudis ########
+# Cargar librería dplyr
+library(dplyr)
+# Agregar una nueva columna llamada 'Categoria_Orientacion' a tu dataframe
+SG2022.4 <- SG2022.1 %>%
+  mutate(Categoria_Orientacion = case_when(
+    Orientacion >= 315 | Orientacion < 45 ~ "Norte",
+    Orientacion >= 45 & Orientacion < 135 ~ "Este",
+    Orientacion >= 135 & Orientacion < 225 ~ "Sur",
+    Orientacion >= 225 & Orientacion < 315 ~ "Oeste",
+    Orientacion == -1 ~ "Plano",  # Condición para "plano"
+    TRUE ~ NA_character_  # Para otros casos
+  ))
+edit(SG2022.4)
+# Crear el boxplot
+library(ggplot2)
+
+ggplot(SG2022.4, aes(x = Categoria_Orientacion, y = Severidad, fill = Categoria_Orientacion)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#1b9e77", "#d95f02", "#7570b3", "#e7298a")) +
+  labs(
+    title = "Distribución de Severidades por Categoría de Orientación Evento Santa Gertrudis",
+    x = "Categoría de Orientación",
+    y = "Severidad"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none", axis.text.x = element_text(size = 14))
+
+####### ANOVASG #######
+
+SG1 <- SG2022[, c(12, 27, 28)]
+SG1 <- SG1[SG1$ID_Fuel %in% 1:5, ]
+SG1$ID_Fuel <- as.factor(SG1$ID_Fuel)
+colnames(SG1)[colnames(SG1) == "FRP6"] <- "Intensidad"
+colnames(SG1)[colnames(SG1) == "ID_Fuel"] <- "Combustible"
+
+write.csv(SG1, file = "C:/R_estudio/R2023/Tesis/SG1.csv", row.names = FALSE)
+
+######### Analisis puntos por categoria ambos eventos #########
+
+SA_sev_por_tipo_comb <- SA2022[, c(11, 27)]
+edit(SA_sev_por_tipo_comb)
+SA_sev_por_tipo_comb <- SA_sev_por_tipo_comb[SA_sev_por_tipo_comb$ID_Fuel %in% 1:5, ]
+SA_sev_por_tipo_comb <- SA_sev_por_tipo_comb[SA_sev_por_tipo_comb$Categ.Sev %in% 1:4, ]
+
+SG_sev_por_tipo_comb <- SG2022[, c(11, 27)]
+edit(SG_sev_por_tipo_comb)
+SG_sev_por_tipo_comb <- SG_sev_por_tipo_comb[SG_sev_por_tipo_comb$ID_Fuel %in% 1:5, ]
+SG_sev_por_tipo_comb <- SG_sev_por_tipo_comb[SG_sev_por_tipo_comb$Categ.sev %in% 1:4, ]
+
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(forcats)
+library(gridExtra)
+
+# Etiquetas para severidad y combustible
+etiquetas_severidad <- c(
+  "1" = "Baja",
+  "2" = "Moderada-baja",
+  "3" = "Moderada-alta",
+  "4" = "Alta"
+)
+
+orden_severidad <- c("Baja", "Moderada-baja", "Moderada-alta", "Alta")
+
+etiquetas_combustible <- c(
+  "Monocultivo forestal", 
+  "Agricultura", 
+  "Praderas", 
+  "Bosque Nativo", 
+  "Matorral"
+)
+
+# FUNCIONES para crear tabla y gráfico
+crear_tabla_heatmap <- function(df, categ_col) {
+  df %>%
+    mutate(
+      ID_Fuel = factor(ID_Fuel, labels = etiquetas_combustible),
+      Categ = factor(!!sym(categ_col), labels = etiquetas_severidad)
+    ) %>%
+    count(ID_Fuel, Categ) %>%
+    pivot_wider(names_from = Categ, values_from = n, values_fill = 0) %>%
+    mutate(Total = rowSums(across(where(is.numeric)))) %>%
+    arrange(match(ID_Fuel, etiquetas_combustible))
+}
+
+crear_grafico_heatmap <- function(tabla, titulo) {
+  tabla_long <- tabla %>%
+    select(-Total) %>%
+    pivot_longer(-ID_Fuel, names_to = "Categ.Sev", values_to = "Cantidad") %>%
+    mutate(Categ.Sev = factor(Categ.Sev, levels = orden_severidad)) %>% 
+    filter(!is.na(Categ.Sev))  # en caso de que falte alguna categoría
+  
+  ggplot(tabla_long, aes(x = Categ.Sev, y = fct_rev(factor(ID_Fuel)), fill = Cantidad)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = Cantidad), size = 3.5) +
+    scale_fill_gradient(low = "#ffffcc", high = "#800026") +
+    labs(
+      x = "Categoría de Severidad",
+      y = "Tipo de Combustible",
+      title = titulo,
+      fill = "Cantidad"
+    ) +
+    theme_minimal(base_size = 13) # Aquí se aumentan las letras un poco
+}
+
+# Crear tablas
+tabla_SA <- crear_tabla_heatmap(SA_sev_por_tipo_comb, "Categ.Sev")
+tabla_SG <- crear_tabla_heatmap(SG_sev_por_tipo_comb, "Categ.sev")
+
+# Exportar CSVs
+write.csv(tabla_SA, "tabla_severidad_Santa_Ana.csv", row.names = FALSE)
+write.csv(tabla_SG, "tabla_severidad_Santa_Gertrudis.csv", row.names = FALSE)
+
+# Crear heatmaps con títulos con salto de línea
+heatmap_SA <- crear_grafico_heatmap(tabla_SA, "Puntos por categoría de severidad y tipo de combustible\nEvento Santa Ana")
+heatmap_SG <- crear_grafico_heatmap(tabla_SG, "Puntos por categoría de severidad y tipo de combustible\nEvento Santa Gertrudis")
+
+# Mostrar ambos heatmaps apilados
+ggarrange(heatmap_SA, heatmap_SG, ncol = 1, labels = c("A", "B"))
