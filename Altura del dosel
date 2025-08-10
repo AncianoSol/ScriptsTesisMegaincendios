@@ -1,0 +1,43 @@
+// Script adaptado y facilitado por Jorge Félez Bernal  
+// Investigador y académico del Centro EULA, Universidad de Concepción  
+// Guía de la tesis: "Megaincendios en Chile: Comprendiendo los factores de un fenómeno abrumador"  
+// Desarrollada por tesista Aníbal Pardo Herrera  
+
+// Este script permite obtener la altura del dosel forestal (canopy height)  
+// para un Área de Interés (AI) definida por el usuario, utilizando el dataset:  
+// "ETH_GlobalCanopyHeight_2020_10m_v1" (Lang et al., 2022).  
+// El producto se exporta a Google Drive en formato GeoTIFF (resolución 30 m, CRS EPSG:32718).  
+
+// Aplicaciones en este trabajo:  
+// - Caracterización estructural del combustible pre-incendio (OE2).  
+// - Relación entre altura del dosel y severidad/intensidad del fuego (OE4).  
+
+// Referencia clave:  
+// Lang, N., Jetz, W., Schindler, K., & Wegner, J. D. (2023). A high-resolution canopy
+// height model of the Earth. Nature Ecology & Evolution, 1-12.
+
+var Altura_dosel = ee.Image('users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1')
+.clip(AI);
+//en el fondo lo que hace es ir al respositorio y sacar los pixeles
+//para el area de interés
+
+// Define a color palette ("inferno") for canopy heights ranging from 0 m to 50 m
+var dosel_para_vis = {
+  min: 0.0,
+  max: 50.0,
+  palette: ['#010005', '#150b37', '#3b0964', '#61136e', '#85216b', '#a92e5e', '#cc4248', '#e75e2e', '#f78410', '#fcae12', '#f5db4c', '#fcffa4'],
+};
+
+Map.addLayer(Altura_dosel, dosel_para_vis, 'Altura del dosel');
+//Centrar vista
+Map.centerObject (AI, 11);
+
+Export.image.toDrive({
+    image: Altura_dosel,
+    folder: 'GEE',
+    description: 'Altura_dosel',
+    scale: 30,
+    crs:'EPSG:32718',
+   region: AI,
+   maxPixels: 1e11,
+  });
