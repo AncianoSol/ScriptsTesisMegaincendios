@@ -1,0 +1,123 @@
+# Script: Remuestreo para análisis estadístico OE4
+# Autor: Aníbal Pardo Herrera  
+# Tesis: "Megaincendios en Chile, Entendiendo los factores de un fenómeno abrumador" - Centro EULA, UdeC
+# Profesor Guia: Jorge Félez Bernal
+#
+# OBJETIVO: Generar red de muestreo aleatorio para extraer valores de
+#           Severidad, Intensidad (FRP promedio 5 modelos) y Combustible
+#           para incendios Santa Ana y Santa Gertrudis.
+#
+# SALIDA: muestreo_SA_final.csv, muestreo_SG_final.csv
+# USO: Alimenta script de ANOVA Welch
+# =================================================================
+setwd("C:/R_estudio/R2023/Tesis")
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(terra)
+library(raster)
+library(sp)
+# Cargar datos
+perimetroSA <- st_read("datosespaciales/perimetroSAahorasi.gpkg", quiet = TRUE)
+perimetroSG <- st_read("datosespaciales/perimetroSG.gpkg", quiet = TRUE)
+combustible <- st_read("datosespaciales/categorizando_fuel.gpkg", quiet = TRUE) %>%
+  dplyr::select(ID_Fuel)
+
+
+# Cargar rasters de severidad
+
+severidadSA <- rast("datosespaciales/dNBRSA.tif")
+severidadSG <- rast("datosespaciales/dNBRSG.tif")
+
+# Cargar rasters de FRP
+
+# Cargar rasters de FRP (Intensidad) para Santa Ana
+FRP_SA1 <- rast("datosespaciales/IDW_SA_ind1.tif")
+FRP_SA2 <- rast("datosespaciales/idw_sa_ind2.tif") 
+FRP_SA3 <- rast("datosespaciales/idw_SA_ind3.tif")
+krig_SA <- rast("datosespaciales/kriggsaesfvar.tif")
+spline_SA <- rast("datosespaciales/splinebarsa.tif")
+
+# Cargar rasters de FRP (Intensidad) para Santa Gertrudis
+FRP_SG1 <- rast("datosespaciales/IDW_SG_ind1.tif")
+FRP_SG2 <- rast("datosespaciales/idw_SG_ind2.tif")
+FRP_SG3 <- rast("datosespaciales/idw_sg_ind3.tif") 
+krig_SG <- rast("datosespaciales/kriggSGesfvar.tif")
+spline_SG <- rast("datosespaciales/splinebarsg.tif")
+
+# Crear red de muestreo
+
+set.seed(123)
+
+# Área en hectáreas
+area_SA <- as.numeric(st_area(perimetroSA))/10000
+area_SG <- as.numeric(st_area(perimetroSG))/10000
+
+# Número de puntos
+n_SA <- 19000
+n_SG <- round(n_SA * (area_SG / area_SA))
+
+# Función de muestreo MODIFICADA para incluir extracción de FRP
+crear_muestreo <- function(perimetro, raster_dNBR, combustible, n, evento, 
+                           frp1, frp2, frp3, krig, spline) {
+  pts <- st_sample(perimetro, size=n, type="random") |> st_sf(id_muestra=1:n, tipo="punto_aleatorio", geometry=_)
+  coords <- st_coordinates(pts)
+  
+  # Extraer valores de todas las superficies
+  pts <- mutate(pts, 
+                longitud=coords[,1], 
+                latitud=coords[,2],
+                dNBR_origen=extract(raster_dNBR, pts)[,2], 
+                Evento=evento,
+                # Extracción de los 5 rasters de FRP
+                FRP_IDW1 = extract(frp1, pts)[,2],
+                FRP_IDW2 = extract(frp2, pts)[,2],
+                FRP_IDW3 = extract(frp3, pts)[,2],
+                FRP_Kriging = extract(krig, pts)[,2],
+                FRP_Spline = extract(spline, pts)[,2])
+  
+  # Calcular promedio de los 5 valores de FRP
+  pts <- pts %>%
+    mutate(FRP_Promedio = rowMeans(cbind(FRP_IDW1, FRP_IDW2, FRP_IDW3, 
+                                         FRP_Kriging, FRP_Spline), na.rm = TRUE))
+  
+  # Hacer spatial join con combustible
+  resultado <- st_join(pts, combustible, join=st_intersects)
+  
+  return(resultado)
+}
+
+# Crear muestreos CON extracción de FRP
+muestreo_SA <- crear_muestreo(perimetroSA, severidadSA, combustible, n_SA, "Santa Ana",
+                              FRP_SA1, FRP_SA2, FRP_SA3, krig_SA, spline_SA)
+
+muestreo_SG <- crear_muestreo(perimetroSG, severidadSG, combustible, n_SG, "Santa Gertrudis",
+                              FRP_SG1, FRP_SG2, FRP_SG3, krig_SG, spline_SG)
+
+# Filtrar solo categorías 1, 2, 3, 4 y 5
+muestreo_SA <- muestreo_SA %>% filter(ID_Fuel %in% c(1, 2, 3, 4, 5))
+muestreo_SG <- muestreo_SG %>% filter(ID_Fuel %in% c(1, 2, 3, 4, 5))
+
+# Crear tablas finales con solo las variables necesarias
+muestreo_SA_final <- muestreo_SA %>%
+  st_drop_geometry() %>%
+  dplyr::select(Severidad = dNBR_origen, 
+                Combustible = ID_Fuel, 
+                Intensidad = FRP_Promedio)
+
+muestreo_SG_final <- muestreo_SG %>%
+  st_drop_geometry() %>%
+  dplyr::select(Severidad = dNBR_origen, 
+                Combustible = ID_Fuel, 
+                Intensidad = FRP_Promedio)
+
+# Ver tablas finales
+head(muestreo_SA_final)
+head(muestreo_SG_final)
+# Cantidad de puntos por categoría de combustible
+table(muestreo_SA$ID_Fuel)
+table(muestreo_SG$ID_Fuel)
+
+# Exportar tablas finales a CSV
+write.csv(muestreo_SA_final, "datosespaciales/muestreo_SA_final.csv", row.names = FALSE)
+write.csv(muestreo_SG_final, "datosespaciales/muestreo_SG_final.csv", row.names = FALSE)
