@@ -1,0 +1,276 @@
+# Script: ANOVA Welch para Severidad e Intensidad por tipo de combustible
+# Autor: Aníbal Pardo Herrera
+# Tesis: "Megaincendios en Chile, Comprendiendo los factores de un fenómeno abrumador" - Centro EULA, UdeC
+# Profesor guia: Jorge Félez Bernal
+#
+# Este script es una iteración NUEVA y CORREGIDA de un análisis
+#                       previo. El ANOVA paramétrico tradicional (ANOVA de un factor)
+#                       violó los supuestos de homocedasticidad (test de Levene) y
+#                       en menor medida normalidad (test de Shapiro-Wilk), por lo que
+#                       se optó por este enfoque robusto que no asume varianzas iguales.
+#
+# OBJETIVO: ANOVA Welch y post-hoc Games-Howell para comparar Severidad (dNBR) 
+#           e Intensidad (FRP) entre tipos de combustible, tras violación de 
+#           supuestos en ANOVA paramétrico previo.
+#
+# ENTRADA: muestreo_SA_final.csv, muestreo_SG_final.csv
+# TRANSFORMACIONES: sqrt(Severidad), sqrt(Intensidad)
+# PRUEBAS: Shapiro-Wilk, Levene, ANOVA Welch, Games-Howell
+# =================================================================
+setwd("C:/R_estudio/R2023/Tesis")
+
+# Librerías necesarias
+library(car)
+library(dplyr)
+library(UsingR)
+library(rstatix)# Para Games-Howell y tidy analysis
+library(PMCMRplus)# Alternativa para Games-Howell
+library(effsize)# Para tamaño del efecto
+
+##### FUNCIÓN PARA QUITAR OUTLIERS #####
+remove_outliers <- function(df) {
+  df %>%
+    mutate(across(where(is.numeric), ~ ifelse(. < quantile(., 0.25) - 1.5 * IQR(.)
+                                              | . > quantile(., 0.75) + 1.5 * IQR(.),
+                                              NA, .))) %>%
+    na.omit()
+}
+
+##### CARGAR NUEVOS DATOS #####
+SA_nuevo <- read.csv("datosespaciales/muestreo_SA_final.csv")
+SG_nuevo <- read.csv("datosespaciales/muestreo_SG_final.csv")
+
+##### PREPARACIÓN DATOS SANTA ANA ######
+SA_nuevo <- SA_nuevo %>%
+  mutate(
+    Combustible = as.factor( # <- ¡Convertir a factor AQUÍ!
+      case_when(
+        Combustible == 1 ~ "M.F.",
+        Combustible == 2 ~ "Agri",
+        Combustible == 3 ~ "Pra",
+        Combustible == 4 ~ "B.N.",
+        Combustible == 5 ~ "Mat",
+        TRUE ~ as.character(Combustible) # Por si hay otros valores no contemplados
+      )
+    )
+  )
+
+# Exploración inicial Santa Ana
+windows()
+par(mfrow = c(2, 2))
+boxplot(SA_nuevo$Severidad ~ SA_nuevo$Combustible, main = "Severidad Original - SA")
+boxplot(sqrt(SA_nuevo$Severidad) ~ SA_nuevo$Combustible, main = "sqrt(Severidad) - SA")
+boxplot(SA_nuevo$Intensidad ~ SA_nuevo$Combustible, main = "Intensidad Original - SA")
+boxplot(log10(SA_nuevo$Intensidad) ~ SA_nuevo$Combustible, main = "log10(Intensidad) - SA")
+
+# Análisis transformaciones Santa Ana
+windows()
+par(mfrow = c(1, 2))
+symbox(SA_nuevo$Severidad, main = "Transformaciones Severidad SA")
+symbox(SA_nuevo$Intensidad, main = "Transformaciones Intensidad SA")
+
+# Remover outliers Santa Ana
+SA_clean <- remove_outliers(SA_nuevo)
+nrow(SA_nuevo)
+nrow(SA_clean)
+table(SA_clean$Combustible)
+
+# Verificar transformaciones post-limpieza Santa Ana
+windows()
+par(mfrow = c(1, 2))
+symbox(SA_clean$Severidad, main = "Severidad SA (Sin outliers)")
+symbox(SA_clean$Intensidad, main = "Intensidad SA (Sin outliers)")
+
+# Confirmar normalidad Santa Ana
+# Para análisis de normalidad simple y efectivo:
+windows()
+par(mfrow = c(2, 2))
+
+hist(sqrt(SA_clean$Severidad), main = "sqrt(Severidad) SA", breaks = 50)
+qqnorm(sqrt(SA_clean$Severidad)); qqline(sqrt(SA_clean$Severidad))
+
+hist(sqrt(SA_clean$Intensidad), main = "sqrt(Intensidad) SA", breaks = 50) 
+qqnorm(sqrt(SA_clean$Intensidad)); qqline(sqrt(SA_clean$Intensidad))
+# Test de normalidad con muestra estandarizada para comparabilidad entre eventos
+# Tamaño muestral: 3907 observaciones (limitado por el evento con menor n después de limpieza)
+# Justificación: Usar el mismo n en ambos eventos elimina sesgos por diferencias en tamaño muestral
+# y permite comparación directa de los estadísticos de normalidad entre Santa Ana y Santa Gertrudis
+shapiro.test(sample(sqrt(SA_clean$Severidad), 3907))
+shapiro.test(sample(sqrt(SA_clean$Intensidad), 3907))
+# Interpretación: p-value < 0.05 indica desviación de normalidad, pero con muestras grandes
+# el test es muy sensible. Valores W > 0.97 sugieren distribuciones aceptablemente normales.
+# Para ANOVA, la transformación sqrt es adecuada y el análisis puede proceder.
+# Referencia: Blanca et al. (2017). Non-normal data: Is ANOVA still a valid option? 
+# Psicothema, 29(4), 552-557.
+
+##### PREPARACIÓN DATOS SANTA GERTRUDIS ######
+SG_nuevo <- SG_nuevo %>%
+  mutate(
+    Combustible = as.factor( # Conversión a factor aquí
+      case_when(
+        Combustible == 1 ~ "M.F.",
+        Combustible == 2 ~ "Agri",
+        Combustible == 3 ~ "Pra",
+        Combustible == 4 ~ "B.N.",
+        Combustible == 5 ~ "Mat",
+        TRUE ~ as.character(Combustible)
+      )
+    )
+  )
+
+# Exploración inicial Santa Gertrudis
+windows()
+par(mfrow = c(2, 2))
+boxplot(SG_nuevo$Severidad ~ SG_nuevo$Combustible, main = "Severidad Original - SG")
+boxplot(sqrt(SG_nuevo$Severidad) ~ SG_nuevo$Combustible, main = "sqrt(Severidad) - SG")
+boxplot(SG_nuevo$Intensidad ~ SG_nuevo$Combustible, main = "Intensidad Original - SG")
+boxplot(log10(SG_nuevo$Intensidad) ~ SG_nuevo$Combustible, main = "log10(Intensidad) - SG")
+
+# Análisis transformaciones Santa Gertrudis
+windows()
+par(mfrow = c(1, 2))
+symbox(SG_nuevo$Severidad, main = "Transformaciones Severidad SG")
+symbox(SG_nuevo$Intensidad, main = "Transformaciones Intensidad SG")
+
+# Remover outliers Santa Gertrudis
+SG_clean <- remove_outliers(SG_nuevo)
+nrow(SG_nuevo)
+nrow(SG_clean)
+table(SG_clean$Combustible)
+
+# Verificar transformaciones post-limpieza Santa Gertrudis
+windows()
+par(mfrow = c(1, 2))
+symbox(SG_clean$Severidad, main = "Severidad SG (Sin outliers)")
+symbox(SG_clean$Intensidad, main = "Intensidad SG (Sin outliers)")
+
+# Confirmar normalidad Santa Gertrudis
+windows()
+par(mfrow = c(2, 2))
+hist(sqrt(SG_clean$Severidad), main = "sqrt(Severidad) SG", breaks = 50)
+qqnorm(sqrt(SG_clean$Severidad)); qqline(sqrt(SG_clean$Severidad))
+hist(sqrt(SG_clean$Intensidad), main = "sqrt(Intensidad) SG", breaks = 50) 
+qqnorm(sqrt(SG_clean$Intensidad)); qqline(sqrt(SG_clean$Intensidad))
+
+# Test de normalidad con muestra
+shapiro.test (sample(sqrt(SG_clean$Severidad), 3907))
+shapiro.test(sample(sqrt(SG_clean$Intensidad), 3907))
+
+# Interpretación SG: p-value < 0.05 indica desviación de normalidad, pero con muestras grandes
+# el test es muy sensible. Valores W > 0.96 sugieren distribuciones aceptablemente normales.
+# Santa Gertrudis muestra valores W ligeramente menores que Santa Ana pero ambos eventos
+# mantienen distribuciones suficientemente normales para ANOVA con transformación sqrt.
+# Referencia: Blanca et al. (2017). Non-normal data: Is ANOVA still a valid option? 
+# Psicothema, 29(4), 552-557.
+
+##### VERIFICACIÓN HOMOCEDASTICIDAD #####
+# Test de Levene para todas las combinaciones
+
+# Santa Ana
+leveneTest(sqrt(SA_clean$Severidad) ~ SA_clean$Combustible)
+leveneTest(sqrt(SA_clean$Intensidad) ~ SA_clean$Combustible)
+
+# Santa Gertrudis
+leveneTest(sqrt(SG_clean$Severidad) ~ SG_clean$Combustible)
+leveneTest(sqrt(SG_clean$Intensidad) ~ SG_clean$Combustible)
+
+##### FUNCIÓN PARA CALCULAR ÉPSILON CUADRADO #####
+calc_epsilon_squared <- function(welch_model, data, group_var) {
+  f_stat <- welch_model$statistic
+  k <- length(unique(data[[group_var]]))
+  n <- nrow(data)
+  epsilon_sq <- f_stat / (f_stat + (n - k))
+  return(epsilon_sq)
+}
+
+##### CREAR VARIABLES TRANSFORMADAS #####
+SA_clean <- SA_clean %>%
+  mutate(Severidad_sqrt = sqrt(Severidad),
+         Intensidad_sqrt = sqrt(Intensidad))
+
+SG_clean <- SG_clean %>%
+  mutate(Severidad_sqrt = sqrt(Severidad), 
+         Intensidad_sqrt = sqrt(Intensidad))
+
+##### ANOVA WELCH - SANTA ANA ######
+# Modelo 1: Severidad Santa Ana (Welch)
+welch_severidad_SA <- oneway.test(Severidad_sqrt ~ Combustible, 
+                                  data = SA_clean, 
+                                  var.equal = FALSE)
+
+# Tamaño del efecto para Severidad SA
+epsilon_sev_SA <- calc_epsilon_squared(welch_severidad_SA, SA_clean, "Combustible")
+
+# Post-hoc: Games-Howell para Severidad SA
+gh_severidad_SA <- games_howell_test(SA_clean, 
+                                     Severidad_sqrt ~ Combustible,
+                                     conf.level = 0.95,
+                                     detailed = TRUE)
+
+# Modelo 2: Intensidad Santa Ana (Welch)
+welch_intensidad_SA <- oneway.test(Intensidad_sqrt ~ Combustible, 
+                                   data = SA_clean, 
+                                   var.equal = FALSE)
+
+# Tamaño del efecto para Intensidad SA
+epsilon_int_SA <- calc_epsilon_squared(welch_intensidad_SA, SA_clean, "Combustible")
+
+# Post-hoc: Games-Howell para Intensidad SA
+gh_intensidad_SA <- games_howell_test(SA_clean, 
+                                      Intensidad_sqrt ~ Combustible,
+                                      conf.level = 0.95,
+                                      detailed = TRUE)
+
+##### ANOVA WELCH - SANTA GERTRUDIS ######
+# Modelo 3: Severidad Santa Gertrudis (Welch)
+welch_severidad_SG <- oneway.test(Severidad_sqrt ~ Combustible, 
+                                  data = SG_clean, 
+                                  var.equal = FALSE)
+
+# Tamaño del efecto para Severidad SG
+epsilon_sev_SG <- calc_epsilon_squared(welch_severidad_SG, SG_clean, "Combustible")
+
+# Post-hoc: Games-Howell para Severidad SG
+gh_severidad_SG <- games_howell_test(SG_clean, 
+                                     Severidad_sqrt ~ Combustible,
+                                     conf.level = 0.95,
+                                     detailed = TRUE)
+
+# Modelo 4: Intensidad Santa Gertrudis (Welch)
+welch_intensidad_SG <- oneway.test(Intensidad_sqrt ~ Combustible, 
+                                   data = SG_clean, 
+                                   var.equal = FALSE)
+
+# Tamaño del efecto para Intensidad SG
+epsilon_int_SG <- calc_epsilon_squared(welch_intensidad_SG, SG_clean, "Combustible")
+
+# Post-hoc: Games-Howell para Intensidad SG
+gh_intensidad_SG <- games_howell_test(SG_clean, 
+                                      Intensidad_sqrt ~ Combustible,
+                                      conf.level = 0.95,
+                                      detailed = TRUE)
+
+##### PRESENTACIÓN DE RESULTADOS #####
+# Función para imprimir resultados de forma organizada
+print_welch_results <- function(welch_model, epsilon_val, gh_test, title) {
+  cat("\n", rep("=", 60), "\n", sep = "")
+  cat(title, "\n")
+  cat(rep("=", 60), "\n")
+  print(welch_model)
+  cat("Tamaño del efecto (épsilon cuadrado):", round(epsilon_val, 4), "\n")
+  cat("\nComparaciones post-hoc (Games-Howell):\n")
+  print(gh_test, n = Inf)
+}
+
+# Mostrar todos los resultados
+print_welch_results(welch_severidad_SA, epsilon_sev_SA, gh_severidad_SA, 
+                    "WELCH ANOVA - SEVERIDAD SANTA ANA")
+
+print_welch_results(welch_intensidad_SA, epsilon_int_SA, gh_intensidad_SA,
+                    "WELCH ANOVA - INTENSIDAD SANTA ANA")
+
+print_welch_results(welch_severidad_SG, epsilon_sev_SG, gh_severidad_SG,
+                    "WELCH ANOVA - SEVERIDAD SANTA GERTRUDIS")
+
+print_welch_results(welch_intensidad_SG, epsilon_int_SG, gh_intensidad_SG,
+                    "WELCH ANOVA - INTENSIDAD SANTA GERTRUDIS")
