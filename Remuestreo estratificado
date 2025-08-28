@@ -1,0 +1,121 @@
+# MUESTREO ESTRATIFICADO BALANCEADO PARA ANÁLISIS DE COMBUSTIBLES
+# Script desarrollado por Aníbal Pardo Herrera
+# 
+# Tesis: "Megaincendios en Chile: Comprendiendo los factores de un fenómeno abrumador"
+# Profesor guia: Jorge Félez bernal 
+# Centro EULA - Universidad de Concepción
+#
+# OBJETIVO: Generar muestreo estratificado balanceado (1000 puntos por categoría)
+#           para análisis de severidad (dNBR) e intensidad (FRP promedio) entre
+#           tipos de combustible en incendios Santa Ana y Santa Gertrudis.
+
+# METODOLOGÍA: Muestreo estratificado según Padilla et al. (2015) Remote Sensing of Environment
+#               que asegura representación balanceada de todas las categorías de combustible
+#               evitando sesgos por dominancia espacial.
+
+# DATOS DE ENTRADA:
+#   - Perímetros: perimetroSAahorasi.gpkg, perimetroSG.gpkg
+#   - Combustible: categorizando_fuel.gpkg (categorías 1-5)
+#   - Severidad: dNBRSA.tif, dNBRSG.tif  
+#   - Intensidad: 5 modelos de FRP por incendio (IDW, Kriging, Spline)
+
+# SALIDAS:
+#   - muestreo_SA_estratificado.csv
+#   - muestreo_SG_estratificado.csv
+#   - Variables: Severidad, Combustible, Intensidad (FRP promedio)
+
+# REFERENCIA: Padilla et al. (2015) Remote Sensing of Environment
+# =================================================================
+
+# Muestreo estratificado balanceado (1000 puntos por categoría)
+# Referencia: Padilla et al. (2015) Remote Sensing of Environment
+
+library(sf)
+library(dplyr)
+library(terra)
+
+set.seed(123)
+puntos_por_categoria <- 1000
+
+# Cargar datos base
+perimetroSA <- st_read("datosespaciales/perimetroSAahorasi.gpkg", quiet = TRUE)
+perimetroSG <- st_read("datosespaciales/perimetroSG.gpkg", quiet = TRUE)
+combustible <- st_read("datosespaciales/categorizando_fuel.gpkg", quiet = TRUE) %>%
+  dplyr::select(ID_Fuel)
+
+severidadSA <- rast("datosespaciales/dNBRSA.tif")
+severidadSG <- rast("datosespaciales/dNBRSG.tif")
+
+# Cargar todos los rasters de FRP
+FRP_SA1 <- rast("datosespaciales/IDW_SA_ind1.tif")
+FRP_SA2 <- rast("datosespaciales/idw_sa_ind2.tif")
+FRP_SA3 <- rast("datosespaciales/idw_SA_ind3.tif")
+krig_SA <- rast("datosespaciales/kriggsaesfvar.tif")
+spline_SA <- rast("datosespaciales/splinebarsa.tif")
+
+FRP_SG1 <- rast("datosespaciales/IDW_SG_ind1.tif")
+FRP_SG2 <- rast("datosespaciales/idw_SG_ind2.tif")
+FRP_SG3 <- rast("datosespaciales/idw_sg_ind3.tif")
+krig_SG <- rast("datosespaciales/kriggSGesfvar.tif")
+spline_SG <- rast("datosespaciales/splinebarsg.tif")
+
+# Función de muestreo estratificado con extracción de FRP
+crear_muestreo_estratificado <- function(perimetro, raster_dNBR, combustible, 
+                                         puntos_por_cat, evento, frp_list) {
+  
+  combustible_en_perimetro <- st_intersection(combustible, perimetro)
+  combustible_filtrado <- combustible_en_perimetro %>% filter(ID_Fuel %in% 1:5)
+  
+  puntos_totales <- list()
+  
+  for(categoria in 1:5) {
+    poligonos_cat <- combustible_filtrado %>% filter(ID_Fuel == categoria)
+    
+    if(nrow(poligonos_cat) > 0) {
+      pts_cat <- st_sample(poligonos_cat, size = puntos_por_cat, type = "random") %>%
+        st_sf(ID_Fuel = categoria, Evento = evento, geometry = .)
+      
+      # Extraer severidad
+      pts_cat$dNBR_origen <- extract(raster_dNBR, pts_cat)[,2]
+      
+      # Extraer todos los valores de FRP
+      for(i in seq_along(frp_list)) {
+        pts_cat[[paste0("FRP_", i)]] <- extract(frp_list[[i]], pts_cat)[,2]
+      }
+      
+      # Calcular promedio de FRP
+      frp_cols <- grep("^FRP_", names(pts_cat), value = TRUE)
+      pts_cat$FRP_Promedio <- rowMeans(as.data.frame(pts_cat)[, frp_cols], na.rm = TRUE)
+      
+      puntos_totales[[categoria]] <- pts_cat
+    }
+  }
+  
+  return(do.call(rbind, puntos_totales))
+}
+
+# Generar muestreos
+frp_list_SA <- list(FRP_SA1, FRP_SA2, FRP_SA3, krig_SA, spline_SA)
+frp_list_SG <- list(FRP_SG1, FRP_SG2, FRP_SG3, krig_SG, spline_SG)
+
+muestreo_SA <- crear_muestreo_estratificado(perimetroSA, severidadSA, combustible, 
+                                            puntos_por_categoria, "Santa Ana", frp_list_SA)
+
+muestreo_SG <- crear_muestreo_estratificado(perimetroSG, severidadSG, combustible, 
+                                            puntos_por_categoria, "Santa Gertrudis", frp_list_SG)
+
+# Exportar resultados finales
+muestreo_SA_final <- muestreo_SA %>% 
+  st_drop_geometry() %>% 
+  dplyr::select(Severidad = dNBR_origen, Combustible = ID_Fuel, Intensidad = FRP_Promedio)
+
+muestreo_SG_final <- muestreo_SG %>% 
+  st_drop_geometry() %>% 
+  dplyr::select(Severidad = dNBR_origen, Combustible = ID_Fuel, Intensidad = FRP_Promedio)
+
+write.csv(muestreo_SA_final, "datosespaciales/muestreo_SA_estratificado.csv", row.names = FALSE)
+write.csv(muestreo_SG_final, "datosespaciales/muestreo_SG_estratificado.csv", row.names = FALSE)
+
+# Verificar distribución
+table(muestreo_SA$ID_Fuel)
+table(muestreo_SG$ID_Fuel)
